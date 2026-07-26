@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Ragionamento Astratto - Poste Italiane</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { background: white; max-width: 600px; width: 100%; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #111827; }
+        .btn { display: block; width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-stop { background: #ef4444; color: white; }
+        .btn-stop:hover { background: #dc2828; }
+        .btn-outline { background: white; color: #3b82f6; border: 2px solid #3b82f6; }
+        .options-container { display: flex; flex-direction: column; gap: 10px; margin: 20px 0; }
+        .option-label { display: flex; align-items: center; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 1.2em; }
+        .option-label:hover { background-color: #f9fafb; }
+        .option-label input { margin-right: 15px; transform: scale(1.5); }
+        table { margin: 0 auto; border-collapse: collapse; font-size: 2.5em; text-align: center; }
+        td { border: 2px solid #ccc; width: 70px; height: 70px; }
+        .large-text { font-size: 2.5em; text-align: center; letter-spacing: 0.3em; }
+        .feedback { padding: 10px; margin-top: 15px; border-radius: 6px; display: none; }
+        .error { color: #ef4444; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="app">
+    <!-- SCHERMO INTRO -->
+    <div id="schermo-intro">
+        <h2>Test Ragionamento Astratto (Forma B)</h2>
+        <p style="text-align: center;">Simulazione ufficiale ottimizzata. <strong>Zero lag.</strong></p>
+        <label style="display: block; text-align: center; margin: 20px 0; font-size: 1.1em;">
+            <input type="checkbox" id="timer-checkbox"> Attiva Timer (Max 1 min per quesito)
+        </label>
+        <button class="btn btn-primary" onclick="avviaTest()">Inizia il Test</button>
+    </div>
+
+    <!-- SCHERMO TEST -->
+    <div id="schermo-test" style="display: none;">
+        <div id="progresso" style="font-weight: bold; margin-bottom: 15px;"></div>
+        <div id="testo-quesito"></div>
+        <div class="options-container" id="opzioni-risposta"></div>
+        <div id="errore-selezione" class="error"></div>
+        
+        <button class="btn btn-primary" onclick="confermaRisposta()">Conferma</button>
+        <button class="btn btn-outline" onclick="mostraAiuto()">Aiuto / Soluzione</button>
+        <button class="btn btn-stop" onclick="terminaTest()">Termina Test</button>
+        
+        <div id="box-feedback" class="feedback" style="background: #e5e7eb;"></div>
+    </div>
+
+    <!-- SCHERMO RISULTATI -->
+    <div id="schermo-fine" style="display: none;">
+        <h2>Riepilogo Risultati</h2>
+        <div id="testo-risultati" style="font-size: 1.2em; text-align: center; margin-bottom: 20px;"></div>
+        <button class="btn btn-primary" onclick="location.reload()">Ricomincia</button>
+    </div>
+</div>
+
+<script>
+    const MAX_QUESITI = 60;
+    const TEMPO_MAX_SEC = 60;
+    const LIVELLI = ["molto_facile", "facile", "medio", "difficile", "molto_difficile"];
+    
+    const SET_FRECCE = ["⬆️", "↗️", "➡️", "↘️", "⬇️", "↙️", "⬅️", "↖️"];
+    const SET_QUADRANTI = ["◰", "◳", "◲", "◱"];
+    const SET_LUNA = ["🌑", "🌒", "🌓", "🌔", "🌕"];
+    const SET_FACCINE = ["😀", "😐", "☹️", "😭"];
+    const SET_METEO = ["☀️", "⛅", "🌧️", "⛈️"];
+    const SET_MISTO = ["○", "□", "△", "◊", "☆", "♡", "●", "■", "▲", "◆"];
+
+    let stato = {};
+
+    function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function randomSample(arr, n) { 
+        let shuffled = [...arr].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, n);
+    }
+    function shuffle(arr) { return arr.sort(() => 0.5 - Math.random()); }
+
+    function generaMatrice(livello) {
+        const n = (livello === "molto_facile" || livello === "facile") ? 2 : 3;
+        const simboli = (livello.includes("difficile") && Math.random() > 0.5) ? SET_QUADRANTI : SET_MISTO;
+        const startIdx = Math.floor(Math.random() * simboli.length);
+        
+        let matrice = [];
+        for (let i = 0; i < n; i++) {
+            let riga = [];
+            for (let j = 0; j < n; j++) {
+                let indice = (startIdx + i + j) % simboli.length;
+                riga.push(simboli[indice]);
+            }
+            matrice.push(riga);
+        }
+        
+        const rispostaCorretta = matrice[n-1][n-1];
+        matrice[n-1][n-1] = "❓";
+        
+        let opzioni = [rispostaCorretta];
+        while (opzioni.length < 5) {
+            let falso = randomChoice(simboli);
+            if (!opzioni.includes(falso)) opzioni.push(falso);
+        }
+        
+        let htmlStr = "<table>";
+        matrice.forEach(riga => {
+            htmlStr += "<tr>" + riga.map(c => `<td>${c}</td>`).join("") + "</tr>";
+        });
+        htmlStr += "</table>";
+        
+        return { testo: `<div style="text-align:center; margin-bottom:15px;">Individua l'elemento mancante nella matrice:</div>${htmlStr}`, opzioni: shuffle(opzioni), corretta: rispostaCorretta };
+    }
+
+    function generaSerie(livello) {
+        const lunghezza = (livello === "molto_facile" || livello === "facile") ? 4 : 5;
+        let serie = [];
+        let setOpzioni = [];
+        
+        if (["medio", "difficile", "molto_difficile"].includes(livello)) {
+            const setScelto = Math.random() > 0.5 ? SET_FRECCE : SET_LUNA;
+            setOpzioni = setScelto;
+            const step = randomChoice([1, 2, -1]);
+            const start = Math.floor(Math.random() * setScelto.length);
+            for(let i=0; i<lunghezza; i++) {
+                let idx = (start + (i * step)) % setScelto.length;
+                if(idx < 0) idx += setScelto.length;
+                serie.push(setScelto[idx]);
+            }
+        } else {
+            const scelti = randomSample(SET_MISTO, 2);
+            setOpzioni = SET_MISTO;
+            serie = [...scelti, ...scelti, ...scelti].slice(0, lunghezza);
+        }
+        
+        const rispostaCorretta = serie[serie.length - 1];
+        serie[serie.length - 1] = "❓";
+        
+        let opzioni = [rispostaCorretta];
+        while (opzioni.length < 5) {
+            let falso = randomChoice(setOpzioni);
+            if (!opzioni.includes(falso)) opzioni.push(falso);
+        }
+        
+        return { testo: `<div style="text-align:center; margin-bottom:15px;">Quale figura completa la serie?</div><div class="large-text">${serie.join("")}</div>`, opzioni: shuffle(opzioni), corretta: rispostaCorretta };
+    }
+
+    function generaAnalogia() {
+        let opzioni, a, b, c, rispostaCorretta, simboli;
+        if (Math.random() > 0.5) {
+            const indici = randomSample([0, 1, 2, 3], 2);
+            a = SET_FACCINE[indici[0]]; b = SET_METEO[indici[0]];
+            c = SET_FACCINE[indici[1]]; rispostaCorretta = SET_METEO[indici[1]];
+            simboli = SET_METEO;
+        } else {
+            const fVuote = ["○", "□", "△"], fPiene = ["●", "■", "▲"];
+            const indici = randomSample([0, 1, 2], 2);
+            a = fVuote[indici[0]]; b = fPiene[indici[0]];
+            c = fVuote[indici[1]]; rispostaCorretta = fPiene[indici[1]];
+            simboli = fPiene;
+        }
+        
+        opzioni = [rispostaCorretta];
+        while (opzioni.length < 5) {
+            let falso = randomChoice(simboli);
+            if (!opzioni.includes(falso)) opzioni.push(falso);
+        }
+        return { testo: `<div style="text-align:center; margin-bottom:15px;">Risolvi l'analogia:</div><div style="font-size:2em; text-align:center;">${a} ➔ ${b} :: ${c} ➔ ❓</div>`, opzioni: shuffle(opzioni), corretta: rispostaCorretta };
+    }
+
+    function generaClassificazione() {
+        const cat = randomChoice(["frecce", "emozioni", "forme"]);
+        let figure, intruso;
+        if (cat === "frecce") { figure = randomSample(["⬆️", "➡️", "⬇️", "⬅️"], 4); intruso = randomChoice(["↗️", "↘️"]); }
+        else if (cat === "emozioni") { figure = ["😀", "😁", "😃", "🙂"]; intruso = "😭"; }
+        else { figure = ["□", "△", "◊", "■"]; intruso = "●"; }
+        
+        let finale = shuffle([...figure, intruso]);
+        return { testo: `<div style="text-align:center; margin-bottom:15px;">Qual è l'intruso?</div><div class="large-text">${finale.join("")}</div>`, opzioni: shuffle([...finale]), corretta: intruso };
+    }
+
+    function creaQuesito(livello) {
+        let tipi = [generaSerie, generaMatrice, generaAnalogia, generaClassificazione];
+        if (livello === "molto_facile") tipi = [generaSerie, generaClassificazione];
+        else if (livello.includes("difficile")) tipi = [generaMatrice, generaSerie];
+        return randomChoice(tipi)(livello);
+    }
+
+    function aggiornaUI() {
+        document.getElementById("progresso").innerHTML = `Quesito ${stato.quesitoCorrente} / ${MAX_QUESITI} — Livello: ${stato.livelloAttuale.replace("_", " ")}`;
+        document.getElementById("testo-quesito").innerHTML = stato.datiQuesito.testo;
+        document.getElementById("errore-selezione").innerText = "";
+        document.getElementById("box-feedback").style.display = "none";
+        
+        const optContainer = document.getElementById("opzioni-risposta");
+        optContainer.innerHTML = "";
+        stato.datiQuesito.opzioni.forEach(opt => {
+            optContainer.innerHTML += `<label class="option-label"><input type="radio" name="risposta" value="${opt}"> ${opt}</label>`;
+        });
+    }
+
+    function avviaTest() {
+        stato = {
+            quesitoCorrente: 1, punteggio: 0, livelloAttuale: "medio",
+            timerAttivo: document.getElementById("timer-checkbox").checked,
+            startTime: Date.now(),
+            datiQuesito: creaQuesito("medio")
+        };
+        document.getElementById("schermo-intro").style.display = "none";
+        document.getElementById("schermo-test").style.display = "block";
+        aggiornaUI();
+    }
+
+    function confermaRisposta() {
+        const selezionata = document.querySelector('input[name="risposta"]:checked');
+        if (!selezionata) {
+            document.getElementById("errore-selezione").innerText = "⚠️ Seleziona una risposta prima di confermare!";
+            return;
+        }
+
+        let timeout = stato.timerAttivo && ((Date.now() - stato.startTime) / 1000 > TEMPO_MAX_SEC);
+        let corretto = (selezionata.value === stato.datiQuesito.corretta) && !timeout;
+        
+        if (corretto) stato.punteggio++;
+        
+        let idxLvl = LIVELLI.indexOf(stato.livelloAttuale);
+        stato.livelloAttuale = LIVELLI[corretto ? Math.min(idxLvl + 1, LIVELLI.length - 1) : Math.max(idxLvl - 1, 0)];
+        stato.quesitoCorrente++;
+        
+        if (stato.quesitoCorrente > MAX_QUESITI) return mostraRisultati();
+        
+        stato.datiQuesito = creaQuesito(stato.livelloAttuale);
+        stato.startTime = Date.now();
+        aggiornaUI();
+    }
+
+    function mostraRisultati() {
+        document.getElementById("schermo-test").style.display = "none";
+        document.getElementById("schermo-fine").style.display = "block";
+        document.getElementById("testo-risultati").innerHTML = `Hai completato il test!<br><br>Punteggio totale:<br><b style="font-size:2em; color:#3b82f6;">${stato.punteggio} / ${MAX_QUESITI}</b>`;
+    }
+
+    function mostraAiuto() {
+        const fb = document.getElementById("box-feedback");
+        fb.innerHTML = `La risposta corretta è: <strong>${stato.datiQuesito.corretta}</strong>`;
+        fb.style.display = "block";
+    }
+
+    function terminaTest() { mostraRisultati(); }
+</script>
+</body>
+</html>
