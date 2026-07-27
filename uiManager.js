@@ -1,11 +1,11 @@
-// uiManager.js - Gestione completa dell'interfaccia utente e del flusso del test
+// uiManager.js - versione corretta
 
 class QuizApp {
     constructor() {
         this.quizGen = new QuizGenerator();
         this.totalQuestions = 20;
         this.timerEnabled = false;
-        this.timerDuration = 60; // secondi
+        this.timerDuration = 60;
         this.currentQuestionIndex = 0;
         this.score = 0;
         this.responses = [];
@@ -74,17 +74,14 @@ class QuizApp {
     }
 
     async renderQuestion() {
-        // Genera nuova domanda (asincrona per supportare il worker)
         const question = await this.quizGen.generateQuestion();
         this.currentQuestion = question;
         this.answered = false;
         this.questionStartTime = Date.now();
         
-        // Aggiorna progresso
         const progress = (this.currentQuestionIndex / this.totalQuestions) * 100;
         document.getElementById('progress-bar').style.width = `${progress}%`;
         
-        // Pulisce area domanda e opzioni
         const questionArea = document.getElementById('question-area');
         questionArea.innerHTML = '';
         const qText = document.createElement('div');
@@ -92,7 +89,6 @@ class QuizApp {
         qText.textContent = question.question;
         questionArea.appendChild(qText);
         
-        // Se richiede visualizzazione grafica (matrice o cubo)
         if (question.render) {
             const svgContainer = document.createElement('div');
             svgContainer.id = 'visual-container';
@@ -104,30 +100,36 @@ class QuizApp {
             }
         }
         
-        // Opzioni
         const optionsContainer = document.getElementById('options-container');
         optionsContainer.innerHTML = '';
         question.options.forEach((opt, index) => {
             const card = document.createElement('div');
             card.className = 'option-card';
-            if (typeof opt === 'object' && opt !== null && question.type === 'spaziale') {
+            
+            // DEBUG FIX: distinguere il tipo di opzione in base al tipo di domanda
+            if (question.type === 'visivo' && typeof opt === 'object' && opt.shape) {
+                // Opzione visiva: disegna la forma
+                const svg = this.createShapeSVG(opt.shape, opt.fill);
+                card.appendChild(svg);
+            } else if (question.type === 'spaziale' && typeof opt === 'object' && opt.front) {
+                // Opzione spaziale: disegna il cubo
                 const miniSvg = this.createMiniCubeSVG(opt);
                 card.appendChild(miniSvg);
             } else {
+                // Opzione testuale/numerica
                 card.textContent = opt.toString();
             }
+            
             card.addEventListener('click', () => this.selectOption(index, card));
             optionsContainer.appendChild(card);
         });
         
-        // Timer
         if (this.timerEnabled) {
             this.startTimer();
         } else {
             document.getElementById('timer-display').textContent = '';
         }
         
-        // Nascondi feedback
         const fb = document.getElementById('feedback');
         fb.classList.remove('feedback-visible', 'feedback-correct', 'feedback-wrong');
         fb.textContent = '';
@@ -140,7 +142,7 @@ class QuizApp {
         this.stopTimer();
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         
-        // Trova l'indice della risposta corretta
+        // Trova l'indice della risposta corretta (confronto profondo per oggetti)
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
@@ -150,7 +152,6 @@ class QuizApp {
         this.quizGen.updateDifficulty(isCorrect, responseTime, this.timerDuration);
         this.responses.push({ correct: isCorrect, time: responseTime });
         
-        // Feedback visivo
         const allCards = document.querySelectorAll('.option-card');
         allCards.forEach((card, i) => {
             card.style.pointerEvents = 'none';
@@ -279,7 +280,7 @@ class QuizApp {
         this.showScreen('intro');
     }
 
-    // ======== Funzioni di disegno con D3 ========
+    // ======== Funzioni di disegno ========
     drawMatrix(container, matrix) {
         const size = matrix.length;
         const cellSize = 70;
@@ -297,7 +298,6 @@ class QuizApp {
                 } else {
                     g.append('text').text('?').attr('text-anchor', 'middle').attr('dy', '0.3em').style('font-size', '24px');
                 }
-                // Bordo cella
                 svg.append('rect')
                     .attr('x', j*cellSize).attr('y', i*cellSize)
                     .attr('width', cellSize).attr('height', cellSize)
@@ -327,9 +327,7 @@ class QuizApp {
     }
 
     drawCube(container, config) {
-        // Disegna un cubo 3D isometrico semplificato (3 facce visibili)
         const svg = d3.select(container).append('svg').attr('width', 150).attr('height', 150);
-        // Coordinate isometriche fisse per le 3 facce (front, top, right)
         const front = `M 50,80 L 90,80 L 90,110 L 50,110 Z`;
         const top = `M 50,80 L 70,60 L 110,60 L 90,80 Z`;
         const right = `M 90,80 L 110,60 L 110,90 L 90,110 Z`;
@@ -356,6 +354,52 @@ class QuizApp {
             poly.setAttribute('fill', p.fill);
             svg.appendChild(poly);
         });
+        return svg;
+    }
+
+    // NUOVO METODO per disegnare una forma in miniatura
+    createShapeSVG(shape, fill) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '50');
+        svg.setAttribute('height', '50');
+        const size = 20;
+        const centerX = 25, centerY = 25;
+        let element;
+        switch(shape) {
+            case 'circle':
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                element.setAttribute('cx', centerX);
+                element.setAttribute('cy', centerY);
+                element.setAttribute('r', size);
+                break;
+            case 'square':
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                element.setAttribute('x', centerX - size);
+                element.setAttribute('y', centerY - size);
+                element.setAttribute('width', size * 2);
+                element.setAttribute('height', size * 2);
+                break;
+            case 'triangle':
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                const triPoints = `${centerX},${centerY - size} ${centerX - size},${centerY + size} ${centerX + size},${centerY + size}`;
+                element.setAttribute('points', triPoints);
+                break;
+            case 'diamond':
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                const diaPoints = `${centerX},${centerY - size} ${centerX + size},${centerY} ${centerX},${centerY + size} ${centerX - size},${centerY}`;
+                element.setAttribute('points', diaPoints);
+                break;
+            default:
+                // fallback cerchio
+                element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                element.setAttribute('cx', centerX);
+                element.setAttribute('cy', centerY);
+                element.setAttribute('r', size);
+        }
+        element.setAttribute('fill', fill === 'solid' ? '#2563eb' : 'none');
+        element.setAttribute('stroke', '#1e293b');
+        element.setAttribute('stroke-width', '2');
+        svg.appendChild(element);
         return svg;
     }
 }
