@@ -2,247 +2,74 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <!-- Ottimizzazione Mobile: Impedisce lo zoom accidentale toccando velocemente -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Test Ragionamento Astratto</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f3f4f6; color: #1f2937; margin: 0; padding: 15px; display: flex; justify-content: center; touch-action: manipulation; }
-        .container { background: white; max-width: 600px; width: 100%; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); box-sizing: border-box; }
-        h1, h2 { text-align: center; color: #111827; margin-top: 0; }
-        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; border: none; border-radius: 8px; font-size: 1.1em; cursor: pointer; font-weight: bold; -webkit-tap-highlight-color: transparent; }
-        .btn-primary { background: #3b82f6; color: white; }
-        .btn-primary:active { background: #2563eb; }
-        .btn-stop { background: #ef4444; color: white; }
-        .btn-outline { background: white; color: #3b82f6; border: 2px solid #3b82f6; }
-        .options-container { display: flex; flex-direction: column; gap: 8px; margin: 20px 0; }
-        
-        /* Design delle risposte ottimizzato per le dita (Thumb-friendly) */
-        .option-label { display: flex; align-items: center; padding: 15px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 1.3em; background: #f9fafb; -webkit-tap-highlight-color: transparent; }
-        .option-label:active { background: #e5e7eb; } 
-        .option-label input { margin-right: 15px; transform: scale(1.5); pointer-events: none; }
-        
-        table { margin: 0 auto; border-collapse: collapse; font-size: 2.2em; text-align: center; }
-        td { border: 2px solid #ccc; width: 60px; height: 60px; }
-        .large-text { font-size: 2.2em; text-align: center; letter-spacing: 0.2em; }
-        .feedback { padding: 12px; margin-top: 15px; border-radius: 8px; display: none; background: #e5e7eb; text-align: center; font-size: 1.2em; }
-        .error { color: #ef4444; text-align: center; font-weight: bold; margin-bottom: 10px; min-height: 20px; }
-    </style>
+    <title>Quiz Ragionamento Astratto</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- D3.js per visualizzazioni interattive -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
+    <div class="container" id="app">
+        <!-- Schermo introduttivo -->
+        <div id="intro-screen" class="screen">
+            <h1>Test di Logica</h1>
+            <div class="settings">
+                <label for="num-questions">Numero domande:</label>
+                <select id="num-questions">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="30">30</option>
+                    <option value="40">40</option>
+                </select>
 
-<div class="container" id="app">
-    <!-- SCHERMO INTRO -->
-    <div id="schermo-intro">
-        <h2>Test Logica (Forma B)</h2>
-        <p style="text-align: center;">Simulazione ufficiale Mobile. <strong>Zero lag.</strong></p>
-        <label style="display: block; text-align: center; margin: 25px 0; font-size: 1.2em; padding: 10px; background: #f3f4f6; border-radius: 8px;">
-            <input type="checkbox" id="timer-checkbox" style="transform: scale(1.3); margin-right: 10px;"> Attiva Timer (Max 60s)
-        </label>
-        <button class="btn btn-primary" onclick="avviaTest()">Inizia il Test</button>
+                <label for="enable-timer">
+                    <input type="checkbox" id="enable-timer"> Attiva timer per domanda
+                </label>
+
+                <label for="timer-duration" id="timer-duration-label">Durata (secondi):</label>
+                <select id="timer-duration">
+                    <option value="30">30</option>
+                    <option value="60" selected>60</option>
+                    <option value="90">90</option>
+                </select>
+            </div>
+            <button id="start-btn" class="btn btn-primary">Inizia il test</button>
+            <div id="high-score-display"></div>
+        </div>
+
+        <!-- Schermo del test -->
+        <div id="quiz-screen" class="screen" style="display: none;">
+            <div id="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+            <div id="question-area"></div>
+            <div id="options-container"></div>
+            <div id="timer-display" class="timer"></div>
+            <div id="feedback" class="feedback"></div>
+            <div class="buttons">
+                <button id="help-btn" class="btn btn-outline">Mostra soluzione</button>
+                <button id="quit-btn" class="btn btn-stop">Termina test</button>
+            </div>
+        </div>
+
+        <!-- Schermo risultati -->
+        <div id="result-screen" class="screen" style="display: none;">
+            <h2>Test completato</h2>
+            <div id="final-score"></div>
+            <div id="performance-stats"></div>
+            <button id="restart-btn" class="btn btn-primary">Ricomincia</button>
+        </div>
     </div>
 
-    <!-- SCHERMO TEST -->
-    <div id="schermo-test" style="display: none;">
-        <div id="progresso" style="font-weight: bold; text-align: center; margin-bottom: 15px; color: #6b7280;"></div>
-        <div id="testo-quesito"></div>
-        <div class="options-container" id="opzioni-risposta"></div>
-        <div id="errore-selezione" class="error"></div>
-        
-        <button class="btn btn-primary" onclick="confermaRisposta()">Conferma</button>
-        <button class="btn btn-outline" onclick="mostraAiuto()">Aiuto / Soluzione</button>
-        <button class="btn btn-stop" onclick="terminaTest()">Termina Test</button>
-        
-        <div id="box-feedback" class="feedback"></div>
-    </div>
-
-    <!-- SCHERMO RISULTATI -->
-    <div id="schermo-fine" style="display: none;">
-        <h2>Test Concluso</h2>
-        <div id="testo-risultati" style="font-size: 1.2em; text-align: center; margin-bottom: 20px;"></div>
-        <button class="btn btn-primary" onclick="location.reload()">Ricomincia</button>
-    </div>
-</div>
-
-<script>
-    const MAX_QUESITI = 60;
-    const TEMPO_MAX_SEC = 60;
-    const LIVELLI = ["molto_facile", "facile", "medio", "difficile", "molto_difficile"];
-    
-    const SET_FRECCE = ["⬆️", "↗️", "➡️", "↘️", "⬇️", "↙️", "⬅️", "↖️"];
-    const SET_QUADRANTI = ["◰", "◳", "◲", "◱"];
-    const SET_LUNA = ["🌑", "🌒", "🌓", "🌔", "🌕"];
-    const SET_FACCINE = ["😀", "😐", "☹️", "😭"];
-    const SET_METEO = ["☀️", "⛅", "🌧️", "⛈️"];
-    const SET_MISTO = ["○", "□", "△", "◊", "☆", "♡", "●", "■", "▲", "◆"];
-    
-    // Tutti i simboli combinati per evitare blocchi se mancano opzioni uniche
-    const TUTTI_SIMBOLI = [...SET_FRECCE, ...SET_QUADRANTI, ...SET_LUNA, ...SET_FACCINE, ...SET_METEO, ...SET_MISTO];
-
-    let stato = {};
-
-    function randomChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-    function shuffle(arr) { return arr.sort(() => 0.5 - Math.random()); }
-
-    // Funzione sicura per generare opzioni senza crash
-    function getOpzioniSicure(corretta, setPreferito) {
-        let opz = [corretta];
-        // Prova prima con il set preferito
-        let tentativi = 0;
-        while(opz.length < 5 && tentativi < 15) {
-            let falso = randomChoice(setPreferito);
-            if(!opz.includes(falso)) opz.push(falso);
-            tentativi++;
-        }
-        // Se non bastano, attinge a tutto il database (previene loop infiniti)
-        while(opz.length < 5) {
-            let falso = randomChoice(TUTTI_SIMBOLI);
-            if(!opz.includes(falso)) opz.push(falso);
-        }
-        return shuffle(opz);
-    }
-
-    function generaMatrice(livello) {
-        const n = (livello === "molto_facile" || livello === "facile") ? 2 : 3;
-        const simboli = (livello.includes("difficile") && Math.random() > 0.5) ? SET_QUADRANTI : SET_MISTO;
-        const startIdx = Math.floor(Math.random() * simboli.length);
-        
-        let matrice = [];
-        for (let i = 0; i < n; i++) {
-            let riga = [];
-            for (let j = 0; j < n; j++) {
-                riga.push(simboli[(startIdx + i + j) % simboli.length]);
-            }
-            matrice.push(riga);
-        }
-        
-        const corretta = matrice[n-1][n-1];
-        matrice[n-1][n-1] = "❓";
-        
-        let htmlStr = "<table>";
-        matrice.forEach(riga => { htmlStr += "<tr>" + riga.map(c => `<td>${c}</td>`).join("") + "</tr>"; });
-        htmlStr += "</table>";
-        
-        return { testo: `<div style="text-align:center; margin-bottom:15px;">Completa la matrice:</div>${htmlStr}`, opzioni: getOpzioniSicure(corretta, simboli), corretta: corretta };
-    }
-
-    function generaSerie(livello) {
-        const lunghezza = (livello === "molto_facile" || livello === "facile") ? 4 : 5;
-        let serie = [];
-        let setOpzioni = SET_MISTO;
-        
-        if (["medio", "difficile", "molto_difficile"].includes(livello)) {
-            setOpzioni = Math.random() > 0.5 ? SET_FRECCE : SET_LUNA;
-            const step = randomChoice([1, 2, -1]);
-            const start = Math.floor(Math.random() * setOpzioni.length);
-            for(let i=0; i<lunghezza; i++) {
-                let idx = (start + (i * step)) % setOpzioni.length;
-                if(idx < 0) idx += setOpzioni.length;
-                serie.push(setOpzioni[idx]);
-            }
-        } else {
-            let scelti = shuffle([...SET_MISTO]).slice(0, 2);
-            serie = [...scelti, ...scelti, ...scelti].slice(0, lunghezza);
-        }
-        
-        const corretta = serie[serie.length - 1];
-        serie[serie.length - 1] = "❓";
-        
-        return { testo: `<div style="text-align:center; margin-bottom:15px;">Quale figura completa la serie?</div><div class="large-text">${serie.join("")}</div>`, opzioni: getOpzioniSicure(corretta, setOpzioni), corretta: corretta };
-    }
-
-    function generaAnalogia() {
-        let a, b, c, corretta, simboli;
-        if (Math.random() > 0.5) {
-            let idx = shuffle([0, 1, 2, 3]).slice(0, 2);
-            a = SET_FACCINE[idx[0]]; b = SET_METEO[idx[0]];
-            c = SET_FACCINE[idx[1]]; corretta = SET_METEO[idx[1]];
-            simboli = SET_METEO;
-        } else {
-            const fVuote = ["○", "□", "△"], fPiene = ["●", "■", "▲"];
-            let idx = shuffle([0, 1, 2]).slice(0, 2);
-            a = fVuote[idx[0]]; b = fPiene[idx[0]];
-            c = fVuote[idx[1]]; corretta = fPiene[idx[1]];
-            simboli = fPiene;
-        }
-        return { testo: `<div style="text-align:center; margin-bottom:15px;">Risolvi l'analogia:</div><div style="font-size:2em; text-align:center;">${a} ➔ ${b} <br> ${c} ➔ ❓</div>`, opzioni: getOpzioniSicure(corretta, simboli), corretta: corretta };
-    }
-
-    function generaClassificazione() {
-        const cat = randomChoice(["frecce", "emozioni", "forme"]);
-        let figure, intruso;
-        if (cat === "frecce") { figure = shuffle(["⬆️", "➡️", "⬇️", "⬅️"]).slice(0, 4); intruso = randomChoice(["↗️", "↘️"]); }
-        else if (cat === "emozioni") { figure = ["😀", "😁", "😃", "🙂"]; intruso = "😭"; }
-        else { figure = ["□", "△", "◊", "■"]; intruso = "●"; }
-        
-        let finale = shuffle([...figure, intruso]);
-        return { testo: `<div style="text-align:center; margin-bottom:15px;">Qual è l'intruso?</div><div class="large-text">${finale.join("")}</div>`, opzioni: shuffle([...finale]), corretta: intruso };
-    }
-
-    function creaQuesito(livello) {
-        let tipi = [generaSerie, generaMatrice, generaAnalogia, generaClassificazione];
-        if (livello === "molto_facile") tipi = [generaSerie, generaClassificazione];
-        else if (livello.includes("difficile")) tipi = [generaMatrice, generaSerie];
-        return randomChoice(tipi)(livello);
-    }
-
-    function aggiornaUI() {
-        document.getElementById("progresso").innerHTML = `Domanda ${stato.quesitoCorrente} / ${MAX_QUESITI} <br><span style="font-size:0.8em; font-weight:normal;">Livello: ${stato.livelloAttuale.replace("_", " ")}</span>`;
-        document.getElementById("testo-quesito").innerHTML = stato.datiQuesito.testo;
-        document.getElementById("errore-selezione").innerText = "";
-        document.getElementById("box-feedback").style.display = "none";
-        
-        const optContainer = document.getElementById("opzioni-risposta");
-        optContainer.innerHTML = stato.datiQuesito.opzioni.map(opt => 
-            `<label class="option-label"><input type="radio" name="risposta" value="${opt}"> ${opt}</label>`
-        ).join("");
-    }
-
-    function avviaTest() {
-        stato = {
-            quesitoCorrente: 1, punteggio: 0, livelloAttuale: "medio",
-            timerAttivo: document.getElementById("timer-checkbox").checked,
-            startTime: Date.now(),
-            datiQuesito: creaQuesito("medio")
-        };
-        document.getElementById("schermo-intro").style.display = "none";
-        document.getElementById("schermo-test").style.display = "block";
-        aggiornaUI();
-    }
-
-    function confermaRisposta() {
-        const selezionata = document.querySelector('input[name="risposta"]:checked');
-        if (!selezionata) {
-            document.getElementById("errore-selezione").innerText = "Tocca una risposta per selezionarla!";
-            return;
-        }
-
-        let corretto = (selezionata.value === stato.datiQuesito.corretta);
-        if (stato.timerAttivo && ((Date.now() - stato.startTime) / 1000 > TEMPO_MAX_SEC)) { corretto = false; }
-        
-        if (corretto) stato.punteggio++;
-        
-        let idxLvl = LIVELLI.indexOf(stato.livelloAttuale);
-        stato.livelloAttuale = LIVELLI[corretto ? Math.min(idxLvl + 1, LIVELLI.length - 1) : Math.max(idxLvl - 1, 0)];
-        stato.quesitoCorrente++;
-        
-        if (stato.quesitoCorrente > MAX_QUESITI) return terminaTest();
-        
-        stato.datiQuesito = creaQuesito(stato.livelloAttuale);
-        stato.startTime = Date.now();
-        aggiornaUI();
-    }
-
-    function mostraAiuto() {
-        const fb = document.getElementById("box-feedback");
-        fb.innerHTML = `La risposta corretta è: <strong>${stato.datiQuesito.corretta}</strong>`;
-        fb.style.display = "block";
-    }
-
-    function terminaTest() { 
-        document.getElementById("schermo-test").style.display = "none";
-        document.getElementById("schermo-fine").style.display = "block";
-        document.getElementById("testo-risultati").innerHTML = `<br>Punteggio finale:<br><b style="font-size:2.5em; color:#3b82f6;">${stato.punteggio} / ${MAX_QUESITI}</b>`;
-    }
-</script>
+    <!-- Caricamento dei moduli in ordine di dipendenza -->
+    <script src="data.js"></script>
+    <script src="quizGenerator.js"></script>
+    <script src="uiManager.js"></script>
+    <script>
+        // Inizializzazione dell'applicazione
+        document.addEventListener('DOMContentLoaded', () => {
+            const app = new QuizApp();
+        });
+    </script>
 </body>
 </html>
