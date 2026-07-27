@@ -1,0 +1,149 @@
+/* Reset minimale e base */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f4f6f9;
+    color: #1e293b;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 15px;
+    touch-action: manipulation;
+}
+.container {
+    width: 100%;
+    max-width: 650px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    padding: 25px;
+}
+.screen { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+h1, h2 { text-align: center; margin-bottom: 20px; color: #0f172a; }
+
+.settings {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+.settings label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.05em;
+    cursor: pointer;
+}
+.settings select {
+    padding: 8px 12px;
+    font-size: 1em;
+    border-radius: 8px;
+    border: 1px solid #cbd5e1;
+    background: white;
+}
+
+.btn {
+    display: inline-block;
+    width: 100%;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-outline { background: white; color: #2563eb; border: 2px solid #2563eb; }
+.btn-outline:hover { background: #eff6ff; }
+.btn-stop { background: #ef4444; color: white; }
+.btn-stop:hover { background: #dc2626; }
+
+/* Barra di progresso */
+#progress-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-bottom: 25px;
+}
+#progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #2563eb;
+    border-radius: 4px;
+    transition: width 0.3s;
+}
+
+/* Area domanda */
+#question-area { min-height: 80px; font-size: 1.2em; margin-bottom: 20px; text-align: center; }
+.question-text { margin-bottom: 15px; }
+
+/* Opzioni cliccabili */
+#options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.option-card {
+    padding: 15px 10px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 1.2em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #f8fafc;
+    min-height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+.option-card:active { background: #dbeafe; border-color: #2563eb; }
+.option-card.selected { background: #2563eb; color: white; border-color: #2563eb; }
+.option-card.correct-feedback { background: #16a34a; color: white; border-color: #16a34a; }
+.option-card.wrong-feedback { background: #dc2626; color: white; border-color: #dc2626; }
+
+/* Timer */
+#timer-display {
+    text-align: center;
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 10px 0;
+    color: #64748b;
+}
+.timer-warning { color: #f59e0b; animation: pulse 1s infinite; }
+.timer-danger { color: #ef4444; animation: pulse 0.5s infinite; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+/* Feedback */
+.feedback {
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-weight: 500;
+    display: none;
+}
+.feedback-visible { display: block; }
+.feedback-correct { background: #dcfce7; color: #166534; }
+.feedback-wrong { background: #fee2e2; color: #991b1b; }
+
+/* Pulsanti laterali */
+.buttons { display: flex; gap: 10px; }
+.buttons .btn { flex: 1; }
+
+/* Schermo risultati */
+#final-score { font-size: 2.5em; text-align: center; margin: 15px 0; color: #2563eb; }
+#performance-stats { text-align: center; margin-bottom: 20px; color: #475569; }
