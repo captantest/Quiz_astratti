@@ -1,16 +1,14 @@
-// quizGenerator.js - Logica di generazione e adattamento difficoltà
-// Dipende da data.js
+// quizGenerator.js - Logica di generazione e adattamento difficoltà (con Web Worker per matrici pesanti)
 
 class QuizGenerator {
     constructor() {
         this.currentDifficulty = 5.0; // Scala 1-10
-        this.questionHistory = [];     // Per evitare ripetizioni
+        this.questionHistory = [];
         this.maxHistory = 20;
     }
 
-    // Aggiorna la difficoltà in base a risposta e tempo (tempo in secondi)
     updateDifficulty(correct, responseTimeSec, targetTimeSec) {
-        const fastThreshold = targetTimeSec * 0.5; // veloce se < metà tempo
+        const fastThreshold = targetTimeSec * 0.5;
         let delta = 0;
         if (correct) {
             delta = responseTimeSec < fastThreshold ? 0.8 : 0.4;
@@ -20,7 +18,6 @@ class QuizGenerator {
         this.currentDifficulty = Math.min(10, Math.max(1, this.currentDifficulty + delta));
     }
 
-    // Mappa il punteggio di difficoltà a un livello (1: molto facile, 5: molto difficile)
     getLevel() {
         const d = this.currentDifficulty;
         if (d <= 2) return 1;
@@ -30,10 +27,8 @@ class QuizGenerator {
         return 5;
     }
 
-    // Genera una domanda casuale del tipo appropriato per il livello attuale
-    generateQuestion() {
+    async generateQuestion() {
         const level = this.getLevel();
-        // Tipi di domande per livello
         const typeWeights = {
             1: { verbale: 0.3, numerico: 0.3, visivo: 0.3, spaziale: 0.1 },
             2: { verbale: 0.25, numerico: 0.25, visivo: 0.3, spaziale: 0.2 },
@@ -42,7 +37,6 @@ class QuizGenerator {
             5: { verbale: 0.1, numerico: 0.3, visivo: 0.25, spaziale: 0.35 }
         };
         const weights = typeWeights[level];
-        // Scegli tipo in base ai pesi
         const types = Object.keys(weights);
         const probs = types.map(t => weights[t]);
         const random = Math.random();
@@ -60,17 +54,15 @@ class QuizGenerator {
         let attempts = 0;
         const maxAttempts = 10;
         do {
-            question = this._createQuestionOfType(chosenType, level);
+            question = await this._createQuestionOfType(chosenType, level);
             attempts++;
-            // Se la domanda è già stata posta di recente, rigenera
         } while (attempts < maxAttempts && this._isDuplicate(question));
         
-        // Registra la domanda nello storico
         this._addToHistory(question);
         return question;
     }
 
-    _createQuestionOfType(type, level) {
+    async _createQuestionOfType(type, level) {
         switch(type) {
             case 'verbale':
                 return Math.random() < 0.5 ? generaAnalogiaVerbale() : generaSinonimoContrario();
@@ -79,10 +71,44 @@ class QuizGenerator {
             case 'spaziale':
                 return generaCuboSpaziale();
             case 'visivo':
-                return generaMatriceVisiva(level);
+                return this._generateVisual(level);
             default:
                 return generaSequenzaNumerica(level);
         }
+    }
+
+    async _generateVisual(level) {
+        if (level >= 4 && window.Worker) {
+            return this._generateVisualWithWorker(level);
+        } else {
+            return generaMatriceVisiva(level);
+        }
+    }
+
+    _generateVisualWithWorker(level) {
+        return new Promise((resolve, reject) => {
+            try {
+                const worker = new Worker('worker.js');
+                worker.onmessage = (e) => {
+                    if (e.data.error) {
+                        console.warn('Worker error, falling back to sync:', e.data.error);
+                        resolve(generaMatriceVisiva(level));
+                    } else {
+                        resolve(e.data.question);
+                    }
+                    worker.terminate();
+                };
+                worker.onerror = (err) => {
+                    console.warn('Worker error, falling back to sync:', err);
+                    resolve(generaMatriceVisiva(level));
+                    worker.terminate();
+                };
+                worker.postMessage({ task: 'generateMatrix', level: level });
+            } catch (e) {
+                console.warn('Worker not supported, using sync generator');
+                resolve(generaMatriceVisiva(level));
+            }
+        });
     }
 
     _isDuplicate(q) {
@@ -102,7 +128,6 @@ class QuizGenerator {
         }
     }
 
-    // Resetta lo stato per un nuovo test
     reset() {
         this.currentDifficulty = 5.0;
         this.questionHistory = [];
