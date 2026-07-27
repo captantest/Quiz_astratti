@@ -1,4 +1,4 @@
-// uiManager.js - Versione semplificata: nessun testo oggetto nei feedback
+// uiManager.js - Fix definitivo per visualizzazione cubi spaziali
 
 class QuizApp {
     constructor() {
@@ -84,48 +84,59 @@ class QuizApp {
         
         const questionArea = document.getElementById('question-area');
         questionArea.innerHTML = '';
+        
+        // Testo della domanda
         const qText = document.createElement('div');
         qText.className = 'question-text';
         qText.textContent = question.question;
         questionArea.appendChild(qText);
         
+        // Se la domanda richiede una visualizzazione grafica
         if (question.render) {
-            const svgContainer = document.createElement('div');
-            svgContainer.id = 'visual-container';
-            questionArea.appendChild(svgContainer);
+            const visualContainer = document.createElement('div');
+            visualContainer.id = 'visual-container';
+            visualContainer.style.textAlign = 'center';
+            visualContainer.style.margin = '15px 0';
+            questionArea.appendChild(visualContainer);
+            
             if (question.render === 'matrice') {
-                this.drawMatrix(svgContainer, question.matrix);
+                this.drawMatrix(visualContainer, question.matrix);
             } else if (question.render === 'cubo3D') {
-                this.drawCube(svgContainer, question.correct);
+                // Per il cubo, mostriamo la configurazione originale
+                this.drawReferenceCube(visualContainer);
             }
         }
         
+        // Opzioni
         const optionsContainer = document.getElementById('options-container');
         optionsContainer.innerHTML = '';
+        
         question.options.forEach((opt, index) => {
             const card = document.createElement('div');
             card.className = 'option-card';
             
-            if (question.type === 'visivo' && typeof opt === 'object' && opt.shape) {
+            if (question.type === 'visivo' && opt && opt.shape) {
                 const svg = this.createShapeSVG(opt.shape, opt.fill);
                 card.appendChild(svg);
-            } else if (question.type === 'spaziale' && typeof opt === 'object' && opt.front) {
+            } else if (question.type === 'spaziale' && opt && opt.front) {
                 const miniSvg = this.createMiniCubeSVG(opt);
                 card.appendChild(miniSvg);
             } else {
-                card.textContent = opt.toString();
+                card.textContent = opt ? opt.toString() : '';
             }
             
             card.addEventListener('click', () => this.selectOption(index));
             optionsContainer.appendChild(card);
         });
         
+        // Timer
         if (this.timerEnabled) {
             this.startTimer();
         } else {
             document.getElementById('timer-display').textContent = '';
         }
         
+        // Reset feedback
         const fb = document.getElementById('feedback');
         fb.classList.remove('feedback-visible', 'feedback-correct', 'feedback-wrong');
         fb.textContent = '';
@@ -138,7 +149,7 @@ class QuizApp {
         
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         
-        // Trova l'indice corretto
+        // Trova l'indice corretto confrontando gli oggetti
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
@@ -148,36 +159,27 @@ class QuizApp {
         this.quizGen.updateDifficulty(isCorrect, responseTime, this.timerDuration);
         this.responses.push({ correct: isCorrect, time: responseTime });
         
-        // Evidenzia tutte le carte: la giusta in verde, la sbagliata (se diversa) in rosso
+        // Evidenziazione visiva
         const allCards = document.querySelectorAll('.option-card');
         allCards.forEach((card, idx) => {
             card.style.pointerEvents = 'none';
             if (idx === correctIndex) {
-                card.classList.add('correct-feedback');  // verde
+                card.classList.add('correct-feedback');
             }
             if (!isCorrect && idx === selectedIndex) {
-                card.classList.add('wrong-feedback');    // rosso
+                card.classList.add('wrong-feedback');
             }
         });
         
-        // Feedback testuale: nessuna descrizione dell'oggetto corretto
+        // Feedback testuale
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible');
         if (isCorrect) {
             fb.classList.add('feedback-correct');
-            // Per i tipi senza spiegazione testuale utile, omettiamola
-            if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
-                fb.innerHTML = '✅ Corretto!';
-            } else {
-                fb.innerHTML = `✅ Corretto! ${this.currentQuestion.explanation}`;
-            }
+            fb.textContent = '✅ Corretto!';
         } else {
             fb.classList.add('feedback-wrong');
-            if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
-                fb.innerHTML = '❌ Sbagliato. La figura corretta è quella evidenziata in verde.';
-            } else {
-                fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
-            }
+            fb.textContent = '❌ Sbagliato. La figura corretta è quella evidenziata in verde.';
         }
         
         setTimeout(() => this.nextQuestion(), 2000);
@@ -197,14 +199,15 @@ class QuizApp {
         if (this.answered) return;
         this.stopTimer();
         this.answered = true;
+        
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         this.quizGen.updateDifficulty(false, responseTime, this.timerDuration);
         this.responses.push({ correct: false, time: responseTime, helped: true });
         
-        // Evidenzia la risposta corretta
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
+        
         const allCards = document.querySelectorAll('.option-card');
         allCards.forEach((card, idx) => {
             card.style.pointerEvents = 'none';
@@ -215,11 +218,7 @@ class QuizApp {
         
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible', 'feedback-wrong');
-        if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
-            fb.innerHTML = 'La figura corretta è evidenziata in verde.';
-        } else {
-            fb.innerHTML = `La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
-        }
+        fb.textContent = 'La figura corretta è evidenziata in verde.';
         
         setTimeout(() => this.nextQuestion(), 2000);
     }
@@ -262,6 +261,7 @@ class QuizApp {
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
+        
         const allCards = document.querySelectorAll('.option-card');
         allCards.forEach((card, idx) => {
             card.style.pointerEvents = 'none';
@@ -272,11 +272,8 @@ class QuizApp {
         
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible', 'feedback-wrong');
-        if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
-            fb.innerHTML = '⏰ Tempo scaduto! La figura corretta è quella in verde.';
-        } else {
-            fb.innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
-        }
+        fb.textContent = '⏰ Tempo scaduto! La figura corretta è quella in verde.';
+        
         this.quizGen.updateDifficulty(false, this.timerDuration, this.timerDuration);
         this.responses.push({ correct: false, time: this.timerDuration, timeout: true });
         
@@ -320,11 +317,14 @@ class QuizApp {
         this.showScreen('intro');
     }
 
-    // ======== DISEGNO ========
+    // ======== DISEGNO MATRICI ========
     drawMatrix(container, matrix) {
         const size = matrix.length;
         const cellSize = 70;
-        const svg = d3.select(container).append('svg')
+        
+        // Pulisci il container e crea SVG con D3
+        const svg = d3.select(container)
+            .append('svg')
             .attr('width', size * cellSize)
             .attr('height', size * cellSize);
         
@@ -333,15 +333,27 @@ class QuizApp {
                 const cell = matrix[i][j];
                 const g = svg.append('g')
                     .attr('transform', `translate(${j*cellSize+cellSize/2}, ${i*cellSize+cellSize/2})`);
+                
                 if (cell) {
                     this.drawShape(g, cell.shape, cell.fill, cellSize*0.35);
                 } else {
-                    g.append('text').text('?').attr('text-anchor', 'middle').attr('dy', '0.3em').style('font-size', '24px');
+                    g.append('text')
+                        .text('?')
+                        .attr('text-anchor', 'middle')
+                        .attr('dy', '0.3em')
+                        .style('font-size', '24px')
+                        .style('fill', '#6b7280');
                 }
+                
+                // Bordo cella
                 svg.append('rect')
-                    .attr('x', j*cellSize).attr('y', i*cellSize)
-                    .attr('width', cellSize).attr('height', cellSize)
-                    .attr('fill', 'none').attr('stroke', '#cbd5e1').attr('stroke-width', 2);
+                    .attr('x', j*cellSize)
+                    .attr('y', i*cellSize)
+                    .attr('width', cellSize)
+                    .attr('height', cellSize)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#cbd5e1')
+                    .attr('stroke-width', 2);
             }
         }
     }
@@ -349,51 +361,105 @@ class QuizApp {
     drawShape(g, shape, fill, size) {
         switch(shape) {
             case 'circle':
-                g.append('circle').attr('r', size).attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                g.append('circle')
+                    .attr('r', size)
+                    .attr('fill', fill === 'solid' ? '#2563eb' : 'none')
+                    .attr('stroke', '#1e293b')
+                    .attr('stroke-width', 2);
                 break;
             case 'square':
-                g.append('rect').attr('x', -size).attr('y', -size).attr('width', size*2).attr('height', size*2)
-                    .attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                g.append('rect')
+                    .attr('x', -size)
+                    .attr('y', -size)
+                    .attr('width', size*2)
+                    .attr('height', size*2)
+                    .attr('fill', fill === 'solid' ? '#2563eb' : 'none')
+                    .attr('stroke', '#1e293b')
+                    .attr('stroke-width', 2);
                 break;
             case 'triangle':
-                const points = `0,${-size} ${-size},${size} ${size},${size}`;
-                g.append('polygon').attr('points', points).attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                g.append('polygon')
+                    .attr('points', `0,${-size} ${-size},${size} ${size},${size}`)
+                    .attr('fill', fill === 'solid' ? '#2563eb' : 'none')
+                    .attr('stroke', '#1e293b')
+                    .attr('stroke-width', 2);
                 break;
             case 'diamond':
-                const dPoints = `0,${-size} ${size},0 0,${size} ${-size},0`;
-                g.append('polygon').attr('points', dPoints).attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                g.append('polygon')
+                    .attr('points', `0,${-size} ${size},0 0,${size} ${-size},0`)
+                    .attr('fill', fill === 'solid' ? '#2563eb' : 'none')
+                    .attr('stroke', '#1e293b')
+                    .attr('stroke-width', 2);
                 break;
         }
     }
 
-    drawCube(container, config) {
-        const svg = d3.select(container).append('svg').attr('width', 150).attr('height', 150);
-        const front = `M 50,80 L 90,80 L 90,110 L 50,110 Z`;
-        const top = `M 50,80 L 70,60 L 110,60 L 90,80 Z`;
-        const right = `M 90,80 L 110,60 L 110,90 L 90,110 Z`;
-        svg.append('polygon').attr('points', front).attr('fill', config.front);
-        svg.append('polygon').attr('points', top).attr('fill', config.top);
-        svg.append('polygon').attr('points', right).attr('fill', config.right);
+    // ======== DISEGNO CUBI ========
+    drawReferenceCube(container) {
+        // Disegna il cubo di riferimento con una configurazione predefinita
+        // (mostra un cubo con facce colorate in modo standard)
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '150');
+        svg.setAttribute('height', '150');
+        svg.style.display = 'block';
+        svg.style.margin = '0 auto';
+        
+        // Coordinate isometriche per le 3 facce visibili
+        const faces = [
+            { points: '50,80 90,80 90,110 50,110', fill: 'red', label: 'front' },
+            { points: '50,80 70,60 110,60 90,80', fill: 'blue', label: 'top' },
+            { points: '90,80 110,60 110,90 90,110', fill: 'green', label: 'right' }
+        ];
+        
+        faces.forEach(face => {
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', face.points);
+            polygon.setAttribute('fill', face.fill);
+            polygon.setAttribute('stroke', '#333');
+            polygon.setAttribute('stroke-width', '2');
+            svg.appendChild(polygon);
+        });
+        
+        // Aggiungi etichetta
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '75');
+        text.setAttribute('y', '140');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', '#666');
+        text.setAttribute('font-size', '12');
+        text.textContent = 'Cubo originale';
+        svg.appendChild(text);
+        
+        container.innerHTML = '';
+        container.appendChild(svg);
     }
 
     createMiniCubeSVG(config) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '60');
-        svg.setAttribute('height', '60');
-        const front = `M 20,35 L 40,35 L 40,55 L 20,55 Z`;
-        const top = `M 20,35 L 30,20 L 50,20 L 40,35 Z`;
-        const right = `M 40,35 L 50,20 L 50,40 L 40,55 Z`;
-        const polygons = [
-            { points: front, fill: config.front },
-            { points: top, fill: config.top },
-            { points: right, fill: config.right }
+        svg.setAttribute('width', '70');
+        svg.setAttribute('height', '70');
+        svg.style.display = 'block';
+        
+        // Usa i colori dalla configurazione, con fallback
+        const frontColor = config.front || 'red';
+        const topColor = config.top || 'blue';
+        const rightColor = config.right || 'green';
+        
+        const faces = [
+            { points: '20,35 40,35 40,55 20,55', fill: frontColor },
+            { points: '20,35 30,20 50,20 40,35', fill: topColor },
+            { points: '40,35 50,20 50,40 40,55', fill: rightColor }
         ];
-        polygons.forEach(p => {
-            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            poly.setAttribute('points', p.points);
-            poly.setAttribute('fill', p.fill);
-            svg.appendChild(poly);
+        
+        faces.forEach(face => {
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', face.points);
+            polygon.setAttribute('fill', face.fill);
+            polygon.setAttribute('stroke', '#333');
+            polygon.setAttribute('stroke-width', '1.5');
+            svg.appendChild(polygon);
         });
+        
         return svg;
     }
 
@@ -401,9 +467,11 @@ class QuizApp {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', '50');
         svg.setAttribute('height', '50');
+        
         const size = 20;
         const centerX = 25, centerY = 25;
         let element;
+        
         switch(shape) {
             case 'circle':
                 element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -420,13 +488,11 @@ class QuizApp {
                 break;
             case 'triangle':
                 element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                const triPoints = `${centerX},${centerY - size} ${centerX - size},${centerY + size} ${centerX + size},${centerY + size}`;
-                element.setAttribute('points', triPoints);
+                element.setAttribute('points', `${centerX},${centerY - size} ${centerX - size},${centerY + size} ${centerX + size},${centerY + size}`);
                 break;
             case 'diamond':
                 element = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-                const diaPoints = `${centerX},${centerY - size} ${centerX + size},${centerY} ${centerX},${centerY + size} ${centerX - size},${centerY}`;
-                element.setAttribute('points', diaPoints);
+                element.setAttribute('points', `${centerX},${centerY - size} ${centerX + size},${centerY} ${centerX},${centerY + size} ${centerX - size},${centerY}`);
                 break;
             default:
                 element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -434,10 +500,12 @@ class QuizApp {
                 element.setAttribute('cy', centerY);
                 element.setAttribute('r', size);
         }
+        
         element.setAttribute('fill', fill === 'solid' ? '#2563eb' : 'none');
         element.setAttribute('stroke', '#1e293b');
         element.setAttribute('stroke-width', '2');
         svg.appendChild(element);
+        
         return svg;
     }
 }
