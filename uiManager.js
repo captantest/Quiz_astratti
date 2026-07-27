@@ -1,4 +1,4 @@
-// uiManager.js - Gestione completa interfaccia (fix feedback [object Object])
+// uiManager.js - Versione semplificata: nessun testo oggetto nei feedback
 
 class QuizApp {
     constructor() {
@@ -106,21 +106,17 @@ class QuizApp {
             const card = document.createElement('div');
             card.className = 'option-card';
             
-            // Rendering specifico per tipo di domanda
             if (question.type === 'visivo' && typeof opt === 'object' && opt.shape) {
                 const svg = this.createShapeSVG(opt.shape, opt.fill);
                 card.appendChild(svg);
-                // Aggiungi testo alternativo per accessibilità
-                card.setAttribute('aria-label', this.optionToReadable(opt, question.type));
             } else if (question.type === 'spaziale' && typeof opt === 'object' && opt.front) {
                 const miniSvg = this.createMiniCubeSVG(opt);
                 card.appendChild(miniSvg);
-                card.setAttribute('aria-label', this.optionToReadable(opt, question.type));
             } else {
                 card.textContent = opt.toString();
             }
             
-            card.addEventListener('click', () => this.selectOption(index, card));
+            card.addEventListener('click', () => this.selectOption(index));
             optionsContainer.appendChild(card);
         });
         
@@ -135,45 +131,56 @@ class QuizApp {
         fb.textContent = '';
     }
 
-    selectOption(index, cardElement) {
+    selectOption(selectedIndex) {
         if (this.answered) return;
         this.answered = true;
-        
         this.stopTimer();
+        
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         
+        // Trova l'indice corretto
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
-        const isCorrect = index === correctIndex;
+        const isCorrect = selectedIndex === correctIndex;
         
         if (isCorrect) this.score++;
         this.quizGen.updateDifficulty(isCorrect, responseTime, this.timerDuration);
         this.responses.push({ correct: isCorrect, time: responseTime });
         
+        // Evidenzia tutte le carte: la giusta in verde, la sbagliata (se diversa) in rosso
         const allCards = document.querySelectorAll('.option-card');
-        allCards.forEach((card, i) => {
+        allCards.forEach((card, idx) => {
             card.style.pointerEvents = 'none';
-            if (i === index) {
-                card.classList.add(isCorrect ? 'correct-feedback' : 'wrong-feedback');
+            if (idx === correctIndex) {
+                card.classList.add('correct-feedback');  // verde
+            }
+            if (!isCorrect && idx === selectedIndex) {
+                card.classList.add('wrong-feedback');    // rosso
             }
         });
         
+        // Feedback testuale: nessuna descrizione dell'oggetto corretto
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible');
         if (isCorrect) {
             fb.classList.add('feedback-correct');
-            fb.innerHTML = `✅ Corretto! ${this.currentQuestion.explanation}`;
+            // Per i tipi senza spiegazione testuale utile, omettiamola
+            if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
+                fb.innerHTML = '✅ Corretto!';
+            } else {
+                fb.innerHTML = `✅ Corretto! ${this.currentQuestion.explanation}`;
+            }
         } else {
             fb.classList.add('feedback-wrong');
-            // Usa la funzione per visualizzare la risposta corretta in formato leggibile
-            const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
-            fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${correctReadable}. ${this.currentQuestion.explanation}`;
+            if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
+                fb.innerHTML = '❌ Sbagliato. La figura corretta è quella evidenziata in verde.';
+            } else {
+                fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+            }
         }
         
-        setTimeout(() => {
-            this.nextQuestion();
-        }, 2000);
+        setTimeout(() => this.nextQuestion(), 2000);
     }
 
     async nextQuestion() {
@@ -194,12 +201,26 @@ class QuizApp {
         this.quizGen.updateDifficulty(false, responseTime, this.timerDuration);
         this.responses.push({ correct: false, time: responseTime, helped: true });
         
+        // Evidenzia la risposta corretta
+        const correctIndex = this.currentQuestion.options.findIndex(
+            opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
+        );
+        const allCards = document.querySelectorAll('.option-card');
+        allCards.forEach((card, idx) => {
+            card.style.pointerEvents = 'none';
+            if (idx === correctIndex) {
+                card.classList.add('correct-feedback');
+            }
+        });
+        
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible', 'feedback-wrong');
-        const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
-        fb.innerHTML = `La risposta corretta è: ${correctReadable}. ${this.currentQuestion.explanation}`;
+        if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
+            fb.innerHTML = 'La figura corretta è evidenziata in verde.';
+        } else {
+            fb.innerHTML = `La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+        }
         
-        document.querySelectorAll('.option-card').forEach(card => card.style.pointerEvents = 'none');
         setTimeout(() => this.nextQuestion(), 2000);
     }
 
@@ -237,12 +258,28 @@ class QuizApp {
         this.stopTimer();
         if (this.answered) return;
         this.answered = true;
-        document.getElementById('feedback').classList.add('feedback-visible', 'feedback-wrong');
-        const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
-        document.getElementById('feedback').innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${correctReadable}. ${this.currentQuestion.explanation}`;
+        
+        const correctIndex = this.currentQuestion.options.findIndex(
+            opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
+        );
+        const allCards = document.querySelectorAll('.option-card');
+        allCards.forEach((card, idx) => {
+            card.style.pointerEvents = 'none';
+            if (idx === correctIndex) {
+                card.classList.add('correct-feedback');
+            }
+        });
+        
+        const fb = document.getElementById('feedback');
+        fb.classList.add('feedback-visible', 'feedback-wrong');
+        if (this.currentQuestion.type === 'visivo' || this.currentQuestion.type === 'spaziale') {
+            fb.innerHTML = '⏰ Tempo scaduto! La figura corretta è quella in verde.';
+        } else {
+            fb.innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+        }
         this.quizGen.updateDifficulty(false, this.timerDuration, this.timerDuration);
         this.responses.push({ correct: false, time: this.timerDuration, timeout: true });
-        document.querySelectorAll('.option-card').forEach(card => card.style.pointerEvents = 'none');
+        
         setTimeout(() => this.nextQuestion(), 2000);
     }
 
@@ -281,24 +318,6 @@ class QuizApp {
     restart() {
         this.quizGen.reset();
         this.showScreen('intro');
-    }
-
-    // ======== FUNZIONE UTILITY PER DESCRIZIONE LEGGIBILE ========
-    /**
-     * Converte un'opzione (che può essere stringa, numero o oggetto) in testo leggibile
-     */
-    optionToReadable(option, type) {
-        if (type === 'visivo' && typeof option === 'object' && option.shape) {
-            const fillMap = { 'none': 'vuoto', 'solid': 'pieno', 'hatch': 'tratteggiato' };
-            const shapeMap = { 'circle': 'cerchio', 'square': 'quadrato', 'triangle': 'triangolo', 'diamond': 'rombo' };
-            const shapeText = shapeMap[option.shape] || option.shape;
-            const fillText = fillMap[option.fill] || option.fill;
-            return `${shapeText} ${fillText}`;
-        }
-        if (type === 'spaziale' && typeof option === 'object' && option.front) {
-            return `Cubo con frontale ${option.front}, alto ${option.top}, destra ${option.right}`;
-        }
-        return option.toString();
     }
 
     // ======== DISEGNO ========
