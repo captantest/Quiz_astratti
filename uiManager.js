@@ -1,5 +1,4 @@
 // uiManager.js - Gestione completa dell'interfaccia utente e del flusso del test
-// Dipende da QuizGenerator e data.js; utilizza D3 per disegnare matrici e cubi
 
 class QuizApp {
     constructor() {
@@ -9,10 +8,12 @@ class QuizApp {
         this.timerDuration = 60; // secondi
         this.currentQuestionIndex = 0;
         this.score = 0;
-        this.responses = []; // per statistiche
+        this.responses = [];
         this.timerInterval = null;
         this.timeLeft = 0;
         this.questionStartTime = 0;
+        this.answered = false;
+        this.currentQuestion = null;
         
         this.loadSettings();
         this.bindEvents();
@@ -62,19 +63,21 @@ class QuizApp {
         document.getElementById(screen + '-screen').style.display = 'block';
     }
 
-    startTest() {
+    async startTest() {
         this.quizGen.reset();
         this.score = 0;
         this.responses = [];
         this.currentQuestionIndex = 0;
+        this.answered = false;
         this.showScreen('quiz');
-        this.renderQuestion();
+        await this.renderQuestion();
     }
 
-    renderQuestion() {
-        // Genera nuova domanda
-        const question = this.quizGen.generateQuestion();
+    async renderQuestion() {
+        // Genera nuova domanda (asincrona per supportare il worker)
+        const question = await this.quizGen.generateQuestion();
         this.currentQuestion = question;
+        this.answered = false;
         this.questionStartTime = Date.now();
         
         // Aggiorna progresso
@@ -97,8 +100,7 @@ class QuizApp {
             if (question.render === 'matrice') {
                 this.drawMatrix(svgContainer, question.matrix);
             } else if (question.render === 'cubo3D') {
-                this.drawCube(svgContainer, question.correct); // mostriamo cubo originale? Per semplificare mostreremo il cubo di riferimento (non ruotato) e le opzioni sono altri cubi
-                // In realtà la domanda spaziale mostra un cubo con configurazione nota e chiede la rotazione
+                this.drawCube(svgContainer, question.correct);
             }
         }
         
@@ -108,9 +110,7 @@ class QuizApp {
         question.options.forEach((opt, index) => {
             const card = document.createElement('div');
             card.className = 'option-card';
-            // Se l'opzione è un oggetto (es. cubo) dobbiamo renderizzare una miniatura
             if (typeof opt === 'object' && opt !== null && question.type === 'spaziale') {
-                // Crea un piccolo svg per il cubo opzione
                 const miniSvg = this.createMiniCubeSVG(opt);
                 card.appendChild(miniSvg);
             } else {
@@ -134,16 +134,18 @@ class QuizApp {
     }
 
     selectOption(index, cardElement) {
-        // Previeni doppia selezione
         if (this.answered) return;
         this.answered = true;
         
-        // Ferma timer
         this.stopTimer();
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         
-        const isCorrect = index === this.currentQuestion.options.indexOf(this.currentQuestion.correct);
-        // Aggiorna punteggio e difficoltà
+        // Trova l'indice della risposta corretta
+        const correctIndex = this.currentQuestion.options.findIndex(
+            opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
+        );
+        const isCorrect = index === correctIndex;
+        
         if (isCorrect) this.score++;
         this.quizGen.updateDifficulty(isCorrect, responseTime, this.timerDuration);
         this.responses.push({ correct: isCorrect, time: responseTime });
@@ -167,37 +169,33 @@ class QuizApp {
             fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
         }
         
-        // Dopo breve pausa passa alla prossima domanda
         setTimeout(() => {
             this.nextQuestion();
         }, 2000);
     }
 
-    nextQuestion() {
+    async nextQuestion() {
         this.currentQuestionIndex++;
         if (this.currentQuestionIndex >= this.totalQuestions) {
             this.endTest();
         } else {
             this.answered = false;
-            this.renderQuestion();
+            await this.renderQuestion();
         }
     }
 
     showSolution() {
         if (this.answered) return;
-        // Mostra la soluzione e segna come risposta errata (aiuto)
         this.stopTimer();
         this.answered = true;
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         this.quizGen.updateDifficulty(false, responseTime, this.timerDuration);
         this.responses.push({ correct: false, time: responseTime, helped: true });
         
-        const correctOption = this.currentQuestion.correct;
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible', 'feedback-wrong');
-        fb.innerHTML = `La risposta corretta è: ${correctOption}. ${this.currentQuestion.explanation}`;
+        fb.innerHTML = `La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
         
-        // Disabilita opzioni
         document.querySelectorAll('.option-card').forEach(card => card.style.pointerEvents = 'none');
         setTimeout(() => this.nextQuestion(), 2000);
     }
@@ -225,14 +223,16 @@ class QuizApp {
         const display = document.getElementById('timer-display');
         display.textContent = `Tempo: ${this.timeLeft}s`;
         display.className = 'timer';
-        if (this.timeLeft <= 10) display.classList.add('timer-danger');
-        else if (this.timeLeft <= 20) display.classList.add('timer-warning');
+        if (this.timeLeft <= 10) {
+            display.classList.add('timer-danger');
+        } else if (this.timeLeft <= 20) {
+            display.classList.add('timer-warning');
+        }
     }
 
     handleTimeout() {
         this.stopTimer();
         if (this.answered) return;
-        // Tempo scaduto -> errore automatico
         this.answered = true;
         document.getElementById('feedback').classList.add('feedback-visible', 'feedback-wrong');
         document.getElementById('feedback').innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
@@ -246,7 +246,7 @@ class QuizApp {
         this.stopTimer();
         this.showScreen('result');
         const accuracy = this.score / this.totalQuestions * 100;
-        const avgTime = this.responses.reduce((s, r) => s + r.time, 0) / this.responses.length;
+        const avgTime = this.responses.length ? this.responses.reduce((s, r) => s + r.time, 0) / this.responses.length : 0;
         document.getElementById('final-score').textContent = `${this.score} / ${this.totalQuestions}`;
         document.getElementById('performance-stats').innerHTML = `
             Accuratezza: ${accuracy.toFixed(1)}%<br>
@@ -315,21 +315,47 @@ class QuizApp {
                 g.append('rect').attr('x', -size).attr('y', -size).attr('width', size*2).attr('height', size*2)
                     .attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
                 break;
-            // ... altri casi triangolo, diamante
+            case 'triangle':
+                const points = `0,${-size} ${-size},${size} ${size},${size}`;
+                g.append('polygon').attr('points', points).attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                break;
+            case 'diamond':
+                const dPoints = `0,${-size} ${size},0 0,${size} ${-size},0`;
+                g.append('polygon').attr('points', dPoints).attr('fill', fill === 'solid' ? '#2563eb' : 'none').attr('stroke', '#1e293b').attr('stroke-width', 2);
+                break;
         }
     }
 
     drawCube(container, config) {
         // Disegna un cubo 3D isometrico semplificato (3 facce visibili)
-        // Implementazione omessa per brevità, utilizzerebbe D3 path per poligoni colorati
+        const svg = d3.select(container).append('svg').attr('width', 150).attr('height', 150);
+        // Coordinate isometriche fisse per le 3 facce (front, top, right)
+        const front = `M 50,80 L 90,80 L 90,110 L 50,110 Z`;
+        const top = `M 50,80 L 70,60 L 110,60 L 90,80 Z`;
+        const right = `M 90,80 L 110,60 L 110,90 L 90,110 Z`;
+        svg.append('polygon').attr('points', front).attr('fill', config.front);
+        svg.append('polygon').attr('points', top).attr('fill', config.top);
+        svg.append('polygon').attr('points', right).attr('fill', config.right);
     }
 
     createMiniCubeSVG(config) {
-        // Restituisce un elemento SVG ridotto per le opzioni spaziali
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', '60');
         svg.setAttribute('height', '60');
-        // ... disegna cubo piccolo
+        const front = `M 20,35 L 40,35 L 40,55 L 20,55 Z`;
+        const top = `M 20,35 L 30,20 L 50,20 L 40,35 Z`;
+        const right = `M 40,35 L 50,20 L 50,40 L 40,55 Z`;
+        const polygons = [
+            { points: front, fill: config.front },
+            { points: top, fill: config.top },
+            { points: right, fill: config.right }
+        ];
+        polygons.forEach(p => {
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', p.points);
+            poly.setAttribute('fill', p.fill);
+            svg.appendChild(poly);
+        });
         return svg;
     }
 }
