@@ -1,4 +1,4 @@
-// uiManager.js - versione corretta
+// uiManager.js - Gestione completa interfaccia (fix feedback [object Object])
 
 class QuizApp {
     constructor() {
@@ -106,17 +106,17 @@ class QuizApp {
             const card = document.createElement('div');
             card.className = 'option-card';
             
-            // DEBUG FIX: distinguere il tipo di opzione in base al tipo di domanda
+            // Rendering specifico per tipo di domanda
             if (question.type === 'visivo' && typeof opt === 'object' && opt.shape) {
-                // Opzione visiva: disegna la forma
                 const svg = this.createShapeSVG(opt.shape, opt.fill);
                 card.appendChild(svg);
+                // Aggiungi testo alternativo per accessibilità
+                card.setAttribute('aria-label', this.optionToReadable(opt, question.type));
             } else if (question.type === 'spaziale' && typeof opt === 'object' && opt.front) {
-                // Opzione spaziale: disegna il cubo
                 const miniSvg = this.createMiniCubeSVG(opt);
                 card.appendChild(miniSvg);
+                card.setAttribute('aria-label', this.optionToReadable(opt, question.type));
             } else {
-                // Opzione testuale/numerica
                 card.textContent = opt.toString();
             }
             
@@ -142,7 +142,6 @@ class QuizApp {
         this.stopTimer();
         const responseTime = (Date.now() - this.questionStartTime) / 1000;
         
-        // Trova l'indice della risposta corretta (confronto profondo per oggetti)
         const correctIndex = this.currentQuestion.options.findIndex(
             opt => JSON.stringify(opt) === JSON.stringify(this.currentQuestion.correct)
         );
@@ -167,7 +166,9 @@ class QuizApp {
             fb.innerHTML = `✅ Corretto! ${this.currentQuestion.explanation}`;
         } else {
             fb.classList.add('feedback-wrong');
-            fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+            // Usa la funzione per visualizzare la risposta corretta in formato leggibile
+            const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
+            fb.innerHTML = `❌ Sbagliato. La risposta corretta è: ${correctReadable}. ${this.currentQuestion.explanation}`;
         }
         
         setTimeout(() => {
@@ -195,7 +196,8 @@ class QuizApp {
         
         const fb = document.getElementById('feedback');
         fb.classList.add('feedback-visible', 'feedback-wrong');
-        fb.innerHTML = `La risposta corretta è: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+        const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
+        fb.innerHTML = `La risposta corretta è: ${correctReadable}. ${this.currentQuestion.explanation}`;
         
         document.querySelectorAll('.option-card').forEach(card => card.style.pointerEvents = 'none');
         setTimeout(() => this.nextQuestion(), 2000);
@@ -236,7 +238,8 @@ class QuizApp {
         if (this.answered) return;
         this.answered = true;
         document.getElementById('feedback').classList.add('feedback-visible', 'feedback-wrong');
-        document.getElementById('feedback').innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${this.currentQuestion.correct}. ${this.currentQuestion.explanation}`;
+        const correctReadable = this.optionToReadable(this.currentQuestion.correct, this.currentQuestion.type);
+        document.getElementById('feedback').innerHTML = `⏰ Tempo scaduto! La risposta corretta era: ${correctReadable}. ${this.currentQuestion.explanation}`;
         this.quizGen.updateDifficulty(false, this.timerDuration, this.timerDuration);
         this.responses.push({ correct: false, time: this.timerDuration, timeout: true });
         document.querySelectorAll('.option-card').forEach(card => card.style.pointerEvents = 'none');
@@ -280,7 +283,25 @@ class QuizApp {
         this.showScreen('intro');
     }
 
-    // ======== Funzioni di disegno ========
+    // ======== FUNZIONE UTILITY PER DESCRIZIONE LEGGIBILE ========
+    /**
+     * Converte un'opzione (che può essere stringa, numero o oggetto) in testo leggibile
+     */
+    optionToReadable(option, type) {
+        if (type === 'visivo' && typeof option === 'object' && option.shape) {
+            const fillMap = { 'none': 'vuoto', 'solid': 'pieno', 'hatch': 'tratteggiato' };
+            const shapeMap = { 'circle': 'cerchio', 'square': 'quadrato', 'triangle': 'triangolo', 'diamond': 'rombo' };
+            const shapeText = shapeMap[option.shape] || option.shape;
+            const fillText = fillMap[option.fill] || option.fill;
+            return `${shapeText} ${fillText}`;
+        }
+        if (type === 'spaziale' && typeof option === 'object' && option.front) {
+            return `Cubo con frontale ${option.front}, alto ${option.top}, destra ${option.right}`;
+        }
+        return option.toString();
+    }
+
+    // ======== DISEGNO ========
     drawMatrix(container, matrix) {
         const size = matrix.length;
         const cellSize = 70;
@@ -357,7 +378,6 @@ class QuizApp {
         return svg;
     }
 
-    // NUOVO METODO per disegnare una forma in miniatura
     createShapeSVG(shape, fill) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', '50');
@@ -390,7 +410,6 @@ class QuizApp {
                 element.setAttribute('points', diaPoints);
                 break;
             default:
-                // fallback cerchio
                 element = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 element.setAttribute('cx', centerX);
                 element.setAttribute('cy', centerY);
