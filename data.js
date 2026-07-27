@@ -1,5 +1,5 @@
 // data.js - Banche dati e utility per generazione di quiz
-// Versione 1.0 - Ottimizzato per GitHub Pages
+// Attenzione: questo file viene usato anche dal Web Worker, quindi niente DOM o window.
 
 // ============================================
 // UTILITÀ GLOBALI
@@ -27,17 +27,22 @@ const SYNONYMS = [
     { word: "fugace", synonyms: ["effimero", "breve", "passeggero"] },
     { word: "garrulo", synonyms: ["loquace", "chiacchierone", "ciarliero"] },
     { word: "probo", synonyms: ["onesto", "integro", "rettitudine"] },
-    // ... aggiungere altre coppie
+    { word: "opimo", synonyms: ["grasso", "pingue", "obeso"] },
+    { word: "laconico", synonyms: ["conciso", "breve", "stringato"] }
 ];
 
 const ANTONYMS = [
     { word: "opaco", antonyms: ["lucido", "brillante", "trasparente"] },
     { word: "effimero", antonyms: ["eterno", "duraturo", "perenne"] },
+    { word: "garrulo", antonyms: ["taciturno", "silenzioso", "muto"] },
+    { word: "probo", antonyms: ["disonesto", "corrotto", "immorale"] }
 ];
 
 const ANALOGIES = [
     { a: "medico", b: "ospedale", c: "insegnante", d: "scuola" },
     { a: "pittore", b: "tela", c: "scultore", d: "marmo" },
+    { a: "cane", b: "bau", c: "gatto", d: "miao" },
+    { a: "occhio", b: "vedere", c: "orecchio", d: "sentire" }
 ];
 
 // ============================================
@@ -45,8 +50,7 @@ const ANALOGIES = [
 // ============================================
 function generaAnalogiaVerbale() {
     const template = randomChoice(ANALOGIES);
-    // Creiamo distrattori
-    const allAnswers = ["scuola", "università", "studio", "casa", "ospedale", "marmo", "bronzo", "pennello"];
+    const allAnswers = ["scuola", "università", "studio", "casa", "ospedale", "marmo", "bronzo", "pennello", "miao", "bau", "vedere", "sentire"];
     const wrong = shuffle(allAnswers.filter(w => w !== template.d)).slice(0, 3);
     const options = shuffle([template.d, ...wrong]);
     return {
@@ -54,7 +58,7 @@ function generaAnalogiaVerbale() {
         question: `${template.a} sta a ${template.b} come ${template.c} sta a ...`,
         correct: template.d,
         options: options,
-        explanation: `${template.a} lavora in ${template.b}, così come ${template.c} lavora in ${template.d}.`
+        explanation: `${template.a} è associato a ${template.b}, così come ${template.c} a ${template.d}.`
     };
 }
 
@@ -62,7 +66,7 @@ function generaSinonimoContrario() {
     const type = Math.random() < 0.5 ? 'syn' : 'ant';
     if (type === 'syn') {
         const item = randomChoice(SYNONYMS);
-        const wrong = shuffle(['facile', 'complicato', 'veloce', 'lento'].filter(w => !item.synonyms.includes(w))).slice(0, 3);
+        const wrong = shuffle(['facile', 'complicato', 'veloce', 'lento', 'brutto'].filter(w => !item.synonyms.includes(w))).slice(0, 3);
         return {
             type: 'verbale',
             question: `Trova il sinonimo di "${item.word}":`,
@@ -87,7 +91,6 @@ function generaSinonimoContrario() {
 // GENERATORI DI QUIZ NUMERICI
 // ============================================
 function generaSequenzaNumerica(livello) {
-    // Livello 1-2: sequenze semplici; 3-4: medie; 5-6: complesse
     let length, rule, start, seq = [];
     const maxNum = 100;
     if (livello <= 3) {
@@ -103,7 +106,6 @@ function generaSequenzaNumerica(livello) {
         for (let i = 0; i < length; i++) seq.push(start * Math.pow(step, i));
         rule = `*${step}`;
     } else {
-        // Fibonacci-like
         length = 7;
         let a = randomInt(1, 3), b = randomInt(4, 7);
         seq = [a, b];
@@ -117,7 +119,7 @@ function generaSequenzaNumerica(livello) {
     const wrongAnswers = new Set();
     while (wrongAnswers.size < 4) {
         let w = correct + randomInt(-10, 10);
-        if (w !== correct && w > 0) wrongAnswers.add(w);
+        if (w !== correct && w > 0 && w < 1000) wrongAnswers.add(w);
     }
     const options = shuffle([correct, ...Array.from(wrongAnswers).slice(0, 4)]);
     return {
@@ -130,20 +132,16 @@ function generaSequenzaNumerica(livello) {
 }
 
 // ============================================
-// GENERATORI DI QUIZ SPAZIALI (Cubi con D3)
+// GENERATORI DI QUIZ SPAZIALI (Cubi con D3) - versione semplificata
 // ============================================
 function generaCuboSpaziale() {
-    // Le sei facce colorate
     const facce = ['red', 'green', 'blue', 'yellow', 'orange', 'purple'];
-    // Assegniamo posizioni fisse: sinistra, destra, alto, basso, fronte, retro
     const posizioni = ['left', 'right', 'top', 'bottom', 'front', 'back'];
     const configurazione = {};
     facce.forEach((colore, i) => configurazione[posizioni[i]] = colore);
     
-    // Scegliamo una rotazione (gira a destra, sinistra, in alto, in basso)
     const rotazioniPossibili = ['right', 'left', 'up', 'down'];
     const rotazione = randomChoice(rotazioniPossibili);
-    // Nuova disposizione dopo rotazione (semplificato: ruota frontale)
     let nuovaConfig = {...configurazione};
     if (rotazione === 'right') {
         nuovaConfig.front = configurazione.right;
@@ -155,9 +153,18 @@ function generaCuboSpaziale() {
         nuovaConfig.left = configurazione.back;
         nuovaConfig.back = configurazione.right;
         nuovaConfig.right = configurazione.front;
-    } // ... altre rotazioni omesse per brevità, implementazione completa in file
-
-    // Generiamo opzioni mostrando 4 cubi diversi (uno corretto)
+    } else if (rotazione === 'up') {
+        nuovaConfig.front = configurazione.bottom;
+        nuovaConfig.bottom = configurazione.back;
+        nuovaConfig.back = configurazione.top;
+        nuovaConfig.top = configurazione.front;
+    } else if (rotazione === 'down') {
+        nuovaConfig.front = configurazione.top;
+        nuovaConfig.top = configurazione.back;
+        nuovaConfig.back = configurazione.bottom;
+        nuovaConfig.bottom = configurazione.front;
+    }
+    
     const distrattori = [];
     for (let i = 0; i < 3; i++) {
         let facceMix = shuffle([...facce]);
@@ -171,7 +178,7 @@ function generaCuboSpaziale() {
         question: 'Osserva il cubo. Quale delle seguenti figure mostra la rotazione corretta?',
         correct: nuovaConfig,
         options: tutteOpzioni,
-        render: 'cubo3D', // indica alla UI di disegnare cubi
+        render: 'cubo3D',
         explanation: `Ruotando il cubo verso ${rotazione}, la faccia ${nuovaConfig.front} diventa frontale.`
     };
 }
@@ -183,13 +190,6 @@ function generaMatriceVisiva(livello) {
     const size = livello <= 4 ? 2 : 3;
     const shapes = ['circle', 'square', 'triangle', 'diamond'];
     const fills = ['none', 'solid', 'hatch'];
-    // Regola: alternanza di forme e riempimenti
-    const regola = {
-        rows: size,
-        cols: size,
-        data: []
-    };
-    // Generiamo matrice con pattern
     let matrix = [];
     for (let i = 0; i < size; i++) {
         matrix[i] = [];
@@ -199,11 +199,9 @@ function generaMatriceVisiva(livello) {
             matrix[i][j] = { shape: shapes[shapeIndex], fill: fills[fillIndex] };
         }
     }
-    // Rimuoviamo ultimo elemento
     const correct = matrix[size-1][size-1];
     matrix[size-1][size-1] = null;
     
-    // Generiamo opzioni: 4 figure, una corretta
     const options = [];
     for (let k = 0; k < 4; k++) {
         let opt;
